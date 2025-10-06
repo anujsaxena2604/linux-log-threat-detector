@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Linux Log Threat Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    
+    <!-- Bootstrap CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Auto-refresh (via JavaScript below) -->
+    <style>
+        .alert-raw {
+            font-size: 0.9rem;
+            white-space: pre-wrap;
+        }
+        .sev-INFO    { background-color: #e7f1ff; }
+        .sev-WARNING { background-color: #fff3cd; }
+        .sev-CRITICAL { background-color: #f8d7da; }
+    </style>
+</head>
+<body class="bg-light">
+
+<div class="container mt-4">
+    <h2 class="mb-3">🔍 Linux Log Threat Detector</h2>
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <input type="text" class="form-control w-50" id="searchBox" placeholder="Filter alerts...">
+        <div>
+            <button class="btn btn-danger me-2" onclick="clearAlerts()">🧹 Clear Alerts</button>
+            <button class="btn btn-primary" onclick="runTest()">🧪 Run Monitor (--test)</button>
+        </div>
+    </div>
+
+    <div id="last-updated" class="text-muted mb-2"></div>
+
+    <div class="list-group" id="alertContainer">
+        {% if alerts %}
+            {% for alert in alerts %}
+                <div class="list-group-item list-group-item-action mb-2 sev-{{ alert.severity }}">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h6 class="mb-1">{{ alert.severity }}</h6>
+                        <small>{{ alert.ip }}</small>
+                    </div>
+                    <pre class="alert-raw">{{ alert.raw }}</pre>
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="alert alert-secondary">No alerts found.</div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Bootstrap JS (optional for button effects) -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- JS: Live auto-refresh via AJAX -->
+<script>
+    const POLL_INTERVAL = 10000; // ms
+
+    function renderAlert(a) {
+        const div = document.createElement('div');
+        div.className = `list-group-item list-group-item-action mb-2 sev-${a.severity}`;
+        const header = document.createElement('div');
+        header.className = 'd-flex w-100 justify-content-between';
+        header.innerHTML = `<h6 class="mb-1">${a.severity}</h6><small>${a.ip}</small>`;
+        const pre = document.createElement('pre');
+        pre.className = 'alert-raw';
+        pre.textContent = a.raw;
+        div.appendChild(header);
+        div.appendChild(pre);
+        return div;
+    }
+
+    async function fetchAndRenderAlerts() {
+        try {
+            const resp = await fetch('/alerts_data');
+            if (!resp.ok) return;
+            const alerts = await resp.json();
+            const container = document.getElementById('alertContainer');
+            container.innerHTML = ''; // Clear current list
+
+            if (!alerts.length) {
+                container.innerHTML = '<div class="alert alert-secondary">No alerts found.</div>';
+                return;
+            }
+
+            for (const alert of alerts) {
+                container.appendChild(renderAlert(alert));
+            }
+
+            document.getElementById('last-updated').innerText =
+                '🔄 Last updated: ' + new Date().toLocaleTimeString();
+        } catch (e) {
+            console.error('Fetch error:', e);
+        }
+    }
+
+    // 🔁 Auto-refresh every X seconds
+    window.addEventListener('DOMContentLoaded', () => {
+        fetchAndRenderAlerts();                    // initial load
+        setInterval(fetchAndRenderAlerts, POLL_INTERVAL);
+
+        // live filtering
+        document.getElementById('searchBox').addEventListener('input', function () {
+            const filter = this.value.toLowerCase();
+            const alerts = document.querySelectorAll('.list-group-item');
+            alerts.forEach(alert => {
+                const text = alert.innerText.toLowerCase();
+                alert.style.display = text.includes(filter) ? '' : 'none';
+            });
+        });
+    });
+
+    // 🧪 Button handlers (you can define real endpoints later)
+    function runTest() {
+        fetch('/run_test')
+            .then(() => alert('Test monitor triggered. Wait for new alerts...'))
+            .catch(() => alert('Error triggering test monitor.'));
+    }
+
+    function clearAlerts() {
+        fetch('/clear_alerts')
+            .then(() => {
+                document.getElementById('alertContainer').innerHTML = 
+                    '<div class="alert alert-secondary">No alerts found.</div>';
+            })
+            .catch(() => alert('Error clearing alerts.'));
+    }
+</script>
+
+</body>
+</html>

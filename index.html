@@ -1,0 +1,44 @@
+<script>
+  // Polling interval in ms
+  const POLL_INTERVAL = 10000; // 10s
+
+  // Build DOM node for a single alert (same structure as template)
+  function renderAlert(a) {
+    const div = document.createElement('div');
+    div.className = `list-group-item list-group-item-action mb-2 sev-${a.severity}`;
+    const header = document.createElement('div');
+    header.className = 'd-flex w-100 justify-content-between';
+    header.innerHTML = `<h6 class="mb-1">${a.severity}</h6><small>${a.ip}</small>`;
+    const pre = document.createElement('pre');
+    pre.className = 'alert-raw';
+    pre.textContent = a.raw;
+    div.appendChild(header);
+    div.appendChild(pre);
+    return div;
+  }
+
+  async function fetchAndRenderAlerts() {
+    try {
+      const resp = await fetch('/alerts_data');
+      if (!resp.ok) return; // silent fail
+      const alerts = await resp.json();
+      const container = document.querySelector('.list-group');
+      container.innerHTML = ''; // clear current list
+      if (!alerts || alerts.length === 0) {
+        container.innerHTML = '<div class="alert alert-secondary">No alerts found</div>';
+        return;
+      }
+      for (const a of alerts) {
+        container.appendChild(renderAlert(a));
+      }
+    } catch (e) {
+      console.error('Error fetching alerts:', e);
+    }
+  }
+
+  // Start polling on load
+  window.addEventListener('DOMContentLoaded', () => {
+    fetchAndRenderAlerts();                // initial fetch
+    setInterval(fetchAndRenderAlerts, POLL_INTERVAL); // periodic fetch
+  });
+</script>
